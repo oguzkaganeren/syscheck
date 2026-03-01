@@ -51,24 +51,34 @@ fn main() -> Result<()> {
     let raw = if args.stdin {
         read_stdin()?
     } else {
-        run_journalctl(args.boots, args.since.as_deref(), args.until.as_deref())?
+        run_journalctl(args.boots, args.since.as_deref(), args.until.as_deref(), args.service.as_deref())?
     };
 
     let entries = parse_journal_lines(&raw);
-    let summaries = summarize(&entries);
 
-    let shown: Vec<&_> = if let Some(ref svc) = args.service {
-        summaries.iter().filter(|s| s.name == *svc).collect()
+    // Servis filtresi varsa tüm logları sakla, yoksa son 5 satır yeterli
+    let max_logs = if args.service.is_some() { 0 } else { 5 };
+    let summaries = summarize(&entries, max_logs);
+
+    let svc_filter = args.service.as_deref().map(|s| s.to_lowercase());
+    let shown: Vec<&_> = if let Some(ref svc) = svc_filter {
+        summaries
+            .iter()
+            .filter(|s| s.name.to_lowercase().contains(svc.as_str()))
+            .collect()
     } else if args.top == 0 {
         summaries.iter().collect()
     } else {
         summaries[..args.top.min(summaries.len())].iter().collect()
     };
 
+    // Servis filtresi varken otomatik verbose; Ok servisleri de göster
+    let verbose = args.verbose || args.service.is_some();
+
     display::print_header();
     for s in shown {
         display::print_service_row(s);
-        if args.verbose && s.issue_count() > 0 {
+        if verbose && (args.service.is_some() || s.issue_count() > 0) {
             display::print_service_detail(s);
         }
     }
@@ -77,7 +87,12 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn run_journalctl(boots: i32, since: Option<&str>, until: Option<&str>) -> Result<String> {
+fn run_journalctl(
+    boots: i32,
+    since: Option<&str>,
+    until: Option<&str>,
+    service: Option<&str>,
+) -> Result<String> {
     let mut cmd_args = vec!["-o".to_string(), "json".to_string(), "--no-pager".to_string()];
 
     if boots != -1 {
@@ -90,6 +105,10 @@ fn run_journalctl(boots: i32, since: Option<&str>, until: Option<&str>) -> Resul
     if let Some(u) = until {
         cmd_args.push("--until".to_string());
         cmd_args.push(u.to_string());
+    }
+    if let Some(svc) = service {
+        cmd_args.push("-u".to_string());
+        cmd_args.push(svc.to_string());
     }
 
     let output = Command::new("journalctl")

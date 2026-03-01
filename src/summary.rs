@@ -2,8 +2,6 @@ use std::collections::{HashMap, VecDeque};
 
 use crate::journal::JournalEntry;
 
-const MAX_RECENT_LOGS: usize = 5;
-
 #[derive(Debug)]
 pub struct LogLine {
     pub timestamp_us: Option<u64>,
@@ -51,8 +49,9 @@ pub enum HealthStatus {
 }
 
 /// Entry listesini servislere göre gruplar ve özetler.
+/// `max_logs`: `recent_logs` için saklanan maksimum satır sayısı; 0 = sınırsız.
 /// Sonuç, issue_count'a göre azalan sırada döner.
-pub fn summarize(entries: &[JournalEntry]) -> Vec<ServiceSummary> {
+pub fn summarize(entries: &[JournalEntry], max_logs: usize) -> Vec<ServiceSummary> {
     let mut map: HashMap<String, ServiceSummary> = HashMap::new();
 
     for entry in entries {
@@ -73,8 +72,8 @@ pub fn summarize(entries: &[JournalEntry]) -> Vec<ServiceSummary> {
             _ => {}
         }
 
-        // Son MAX_RECENT_LOGS log satırını kayan pencere ile tut
-        if summary.recent_logs.len() >= MAX_RECENT_LOGS {
+        // Son max_logs log satırını kayan pencere ile tut (0 = sınırsız)
+        if max_logs > 0 && summary.recent_logs.len() >= max_logs {
             summary.recent_logs.pop_front();
         }
         summary.recent_logs.push_back(LogLine {
