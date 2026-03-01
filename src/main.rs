@@ -27,6 +27,14 @@ struct Args {
     /// Stdin'den oku (pipe kullanımı için)
     #[arg(long)]
     stdin: bool,
+
+    /// Detay modu: hatalı servislerin son 5 log mesajını göster
+    #[arg(short, long)]
+    verbose: bool,
+
+    /// Belirli bir servisi filtrele (örn: nginx.service)
+    #[arg(value_name = "SERVICE")]
+    service: Option<String>,
 }
 
 fn main() -> Result<()> {
@@ -41,15 +49,20 @@ fn main() -> Result<()> {
     let entries = parse_journal_lines(&raw);
     let summaries = summarize(&entries);
 
-    let shown: &[_] = if args.top == 0 {
-        &summaries
+    let shown: Vec<&_> = if let Some(ref svc) = args.service {
+        summaries.iter().filter(|s| s.name == *svc).collect()
+    } else if args.top == 0 {
+        summaries.iter().collect()
     } else {
-        &summaries[..args.top.min(summaries.len())]
+        summaries[..args.top.min(summaries.len())].iter().collect()
     };
 
     display::print_header();
     for s in shown {
         display::print_service_row(s);
+        if args.verbose && s.issue_count() > 0 {
+            display::print_service_detail(s);
+        }
     }
     display::print_footer(&summaries);
 

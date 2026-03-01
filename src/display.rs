@@ -54,6 +54,36 @@ pub fn print_service_row(s: &ServiceSummary) {
     );
 }
 
+/// Verbose modda servisin son log satırlarını girintili ve dim olarak basar.
+pub fn print_service_detail(s: &ServiceSummary) {
+    for log in &s.recent_logs {
+        let ts = log
+            .timestamp_us
+            .map(format_timestamp_us)
+            .unwrap_or_else(|| "??:??:??".to_string());
+
+        let msg = truncate_str(log.message.trim(), 120);
+        println!("{}", format!("  {}  {}", ts, msg).dimmed());
+    }
+}
+
+fn format_timestamp_us(ts_us: u64) -> String {
+    let ts_s = ts_us / 1_000_000;
+    let secs = ts_s % 60;
+    let mins = (ts_s / 60) % 60;
+    let hours = (ts_s / 3600) % 24;
+    format!("{:02}:{:02}:{:02}", hours, mins, secs)
+}
+
+fn truncate_str(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        s.to_string()
+    } else {
+        let truncated: String = s.chars().take(max_chars).collect();
+        format!("{}…", truncated)
+    }
+}
+
 /// Özet istatistikleri basar.
 pub fn print_footer(summaries: &[ServiceSummary]) {
     let total_services = summaries.len();

@@ -43,7 +43,6 @@ impl JournalEntry {
     }
 
     /// MESSAGE alanını human-readable string'e çevirir.
-    #[allow(dead_code)]
     pub fn message_text(&self) -> String {
         match &self.message {
             Some(serde_json::Value::String(s)) => s.clone(),
