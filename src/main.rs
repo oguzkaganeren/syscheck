@@ -32,6 +32,14 @@ struct Args {
     #[arg(short, long)]
     verbose: bool,
 
+    /// Log başlangıç zamanı (örn: '1 hour ago', '2024-01-15 10:00')
+    #[arg(long)]
+    since: Option<String>,
+
+    /// Log bitiş zamanı (örn: '2024-01-15 12:00')
+    #[arg(long)]
+    until: Option<String>,
+
     /// Belirli bir servisi filtrele (örn: nginx.service)
     #[arg(value_name = "SERVICE")]
     service: Option<String>,
@@ -43,7 +51,7 @@ fn main() -> Result<()> {
     let raw = if args.stdin {
         read_stdin()?
     } else {
-        run_journalctl(args.boots)?
+        run_journalctl(args.boots, args.since.as_deref(), args.until.as_deref())?
     };
 
     let entries = parse_journal_lines(&raw);
@@ -69,15 +77,23 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn run_journalctl(boots: i32) -> Result<String> {
-    let boot_arg = if boots == -1 {
-        "--no-pager".to_string()
-    } else {
-        format!("-b -{}", boots)
-    };
+fn run_journalctl(boots: i32, since: Option<&str>, until: Option<&str>) -> Result<String> {
+    let mut cmd_args = vec!["-o".to_string(), "json".to_string(), "--no-pager".to_string()];
+
+    if boots != -1 {
+        cmd_args.push(format!("-b -{}", boots));
+    }
+    if let Some(s) = since {
+        cmd_args.push("--since".to_string());
+        cmd_args.push(s.to_string());
+    }
+    if let Some(u) = until {
+        cmd_args.push("--until".to_string());
+        cmd_args.push(u.to_string());
+    }
 
     let output = Command::new("journalctl")
-        .args(["-o", "json", &boot_arg, "--no-pager"])
+        .args(&cmd_args)
         .stdout(Stdio::piped())
         .output()
         .context("journalctl çalıştırılamadı")?;
